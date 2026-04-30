@@ -5,6 +5,9 @@ import numpy as np
 import sys
 import argparse
 import torch
+from dotenv import load_dotenv
+
+load_dotenv()
 
 # --- TENSORFLOW / KERAS LEGACY BRIDGE ---
 os.environ["TF_USE_LEGACY_KERAS"] = "1"
@@ -18,8 +21,8 @@ except ImportError as e:
     sys.exit(1)
 
 # --- CONFIGURATION ---
-OLLAMA_HOST = "http://172.16.10.250:11434" # Your remote Ollama server
-MODEL_NAME = "gemma4:e4b"
+OLLAMA_HOST = os.getenv("OLLAMA_HOST", "http://localhost:11434")
+MODEL_NAME = os.getenv("MODEL_NAME", "gemma4:e4b")
 SYSTEM_PROMPT = """
 You are an expert Music Theory Professor and Studio Producer. 
 Identify the Key/Mode, provide Roman Numeral analysis, describe song form, and give soloing advice.

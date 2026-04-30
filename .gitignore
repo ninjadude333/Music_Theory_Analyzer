@@ -1,3 +1,6 @@
+# Environment config
+.env
+
 # Audio input files
 input/
 

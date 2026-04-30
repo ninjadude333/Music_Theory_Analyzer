@@ -21,3 +21,4 @@ ollama>=0.1.6
 # Utility
 tqdm
 argparse
+python-dotenv
