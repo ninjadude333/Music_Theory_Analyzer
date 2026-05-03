@@ -1,5 +1,6 @@
 import os
 import json
+import shutil
 import librosa
 import numpy as np
 import sys
@@ -13,6 +14,7 @@ load_dotenv()
 os.environ["TF_USE_LEGACY_KERAS"] = "1"
 
 try:
+    import pretty_midi
     from ollama import Client
     from httpx import Timeout
     from basic_pitch.inference import predict as bp_predict
@@ -23,6 +25,7 @@ except ImportError as e:
 # --- CONFIGURATION ---
 OLLAMA_HOST = os.getenv("OLLAMA_HOST", "http://localhost:11434")
 MODEL_NAME = os.getenv("MODEL_NAME", "gemma4:e4b")
+OUTPUT_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "output")
 SYSTEM_PROMPT = """
 You are an expert Music Theory Professor and Studio Producer. 
 Identify the Key/Mode, provide Roman Numeral analysis, describe song form, and give soloing advice.
@@ -57,6 +60,7 @@ def extract_rich_data(audio_path, use_gpu=False):
     estimated_key = keys[np.argmax(np.mean(chroma, axis=1))]
 
     notes = []
+    midi_data = None
     try:
         _, midi_data, _ = bp_predict(audio_path)
         if hasattr(midi_data, 'instruments') and len(midi_data.instruments) > 0:
@@ -77,7 +81,8 @@ def extract_rich_data(audio_path, use_gpu=False):
             "instruments": stems_found,
             "processing_device": device
         },
-        "transcription_preview": notes
+        "transcription_preview": notes,
+        "midi_data": midi_data
     }
 
 def get_ollama_analysis(data):
@@ -99,6 +104,9 @@ def main():
     parser.add_argument("input")
     parser.add_argument("--no-ollama", action="store_true")
     parser.add_argument("--gpu_on", action="store_true")
+    parser.add_argument("--export-midi", action="store_true", help="Export MIDI file of the transcription")
+    parser.add_argument("--export-multitrack-midi", action="store_true", help="Export multitrack MIDI with separate tracks per stem")
+    parser.add_argument("--cleanup", action="store_true", help="Remove separated stems after processing")
     args = parser.parse_args()
     
     if not os.path.exists(args.input):
@@ -106,21 +114,55 @@ def main():
         return
 
     rich_data = extract_rich_data(args.input, args.gpu_on)
-    
+    filename = os.path.splitext(os.path.basename(args.input))[0]
+    stem_dir = os.path.join("separated", "htdemucs", filename)
+    output_dir = os.path.join(OUTPUT_DIR, filename)
+    os.makedirs(output_dir, exist_ok=True)
+
+    # Export MIDI if requested
+    if args.export_midi and rich_data.get("midi_data"):
+        midi_path = os.path.join(output_dir, f"{filename}.mid")
+        rich_data["midi_data"].write(midi_path)
+        print(f"🎹 MIDI exported to: {midi_path}")
+
+    # Export multitrack MIDI — transcribe each stem separately
+    if args.export_multitrack_midi and os.path.exists(stem_dir):
+        print("🎶 Transcribing stems to multitrack MIDI...")
+        multitrack = pretty_midi.PrettyMIDI()
+        for stem_name in ["bass", "drums", "vocals", "other"]:
+            stem_path = os.path.join(stem_dir, f"{stem_name}.wav")
+            if not os.path.exists(stem_path):
+                continue
+            try:
+                print(f"  ♪ Transcribing {stem_name}...")
+                _, stem_midi, _ = bp_predict(stem_path)
+                if hasattr(stem_midi, 'instruments') and stem_midi.instruments:
+                    track = stem_midi.instruments[0]
+                    track.name = stem_name
+                    multitrack.instruments.append(track)
+            except Exception as e:
+                print(f"  ⚠️ Skipping {stem_name}: {e}")
+        if multitrack.instruments:
+            mt_path = os.path.join(output_dir, f"{filename}_multitrack.mid")
+            multitrack.write(mt_path)
+            print(f"🎹 Multitrack MIDI exported to: {mt_path}")
+
+    # Strip non-serializable midi_data before JSON usage
+    serializable_data = {k: v for k, v in rich_data.items() if k != "midi_data"}
+
     if args.no_ollama:
-        print(json.dumps(rich_data, indent=4))
+        json_path = os.path.join(output_dir, f"{filename}_data.json")
+        with open(json_path, "w", encoding="utf-8") as f:
+            json.dump(serializable_data, f, indent=4)
+        print(f"📄 JSON saved to: {json_path}")
     else:
-        analysis = get_ollama_analysis(rich_data)
+        analysis = get_ollama_analysis(serializable_data)
         print("\n" + "="*60)
         print("🎼 MUSIC THEORY ANALYSIS REPORT")
         print("="*60 + "\n")
         print(analysis)
 
-        # Save report to the song's separated subfolder
-        filename = os.path.splitext(os.path.basename(args.input))[0]
-        report_dir = os.path.join("separated", "htdemucs", filename)
-        os.makedirs(report_dir, exist_ok=True)
-        report_path = os.path.join(report_dir, f"{filename}_analysis.md")
+        report_path = os.path.join(output_dir, f"{filename}_analysis.md")
         with open(report_path, "w", encoding="utf-8") as f:
             f.write(f"# 🎼 Music Theory Analysis: {filename}\n\n")
             f.write(f"**Tempo:** {rich_data['metadata']['tempo_bpm']} BPM\n")
@@ -129,6 +171,11 @@ def main():
             f.write("---\n\n")
             f.write(analysis)
         print(f"\n💾 Report saved to: {report_path}")
+
+    # Cleanup stems if requested
+    if args.cleanup and os.path.exists(stem_dir):
+        shutil.rmtree(stem_dir)
+        print(f"🧹 Cleaned up stems: {stem_dir}")
 
 if __name__ == "__main__":
     main()

@@ -21,8 +21,8 @@ Reports are saved as Markdown files alongside the separated stems for easy refer
 └─────────────┘     └──────────────┘     └─────────────────┘     └───────────────┘
                            │                      │                        │
                            ▼                      ▼                        ▼
-                    separated/htdemucs/    JSON metadata +          Markdown report
-                    <song>/bass.wav       transcription             saved to stem dir
+                    separated/htdemucs/    output/<song>/           output/<song>/
+                    <song>/bass.wav        <song>.mid               <song>_analysis.md
                     <song>/drums.wav
                     <song>/vocals.wav
                     <song>/other.wav
@@ -74,6 +74,15 @@ python app.py input/my_song.mp3 --gpu_on
 
 # Skip LLM analysis (just extract audio data as JSON)
 python app.py input/my_song.mp3 --no-ollama
+
+# Export MIDI transcription alongside stems
+python app.py input/my_song.mp3 --export-midi
+
+# Export multitrack MIDI (one track per instrument)
+python app.py input/my_song.mp3 --export-multitrack-midi
+
+# Clean up separated stems after processing
+python app.py input/my_song.mp3 --cleanup
 ```
 
 ### Output
@@ -85,8 +94,12 @@ separated/htdemucs/my_song/
 ├── bass.wav
 ├── drums.wav
 ├── vocals.wav
-├── other.wav
-└── my_song_analysis.md    ← The music theory report
+└── other.wav
+
+output/my_song/
+├── my_song_analysis.md         ← The music theory report
+├── my_song.mid                 ← MIDI transcription (with --export-midi)
+└── my_song_multitrack.mid      ← Multitrack MIDI (with --export-multitrack-midi)
 ```
 
 ---
@@ -102,6 +115,7 @@ separated/htdemucs/my_song/
 | `tensorflow` | Required by Basic Pitch |
 | `ollama` | Python client for Ollama LLM API |
 | `httpx` | HTTP client with timeout support |
+| `pretty_midi` | MIDI file creation and multitrack merging |
 
 ---
 
@@ -112,6 +126,9 @@ separated/htdemucs/my_song/
 | `input` | Path to audio file (required) |
 | `--gpu_on` | Use CUDA GPU for Demucs stem separation |
 | `--no-ollama` | Skip LLM analysis, output raw JSON data only |
+| `--export-midi` | Export MIDI file of the transcription to the output directory |
+| `--export-multitrack-midi` | Export multitrack MIDI with separate tracks per stem |
+| `--cleanup` | Remove separated stem files after processing |
 
 ---
 
