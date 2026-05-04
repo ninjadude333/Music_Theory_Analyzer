@@ -22,6 +22,7 @@ try:
     from basic_pitch.inference import predict as bp_predict
     from basic_pitch import ICASSP_2022_MODEL_PATH
     BASIC_PITCH_MODEL = str(ICASSP_2022_MODEL_PATH) + ".onnx"
+    from html_report import generate_html_report
 except ImportError as e:
     print(f"❌ Missing dependencies: {e}")
     sys.exit(1)
@@ -51,6 +52,78 @@ STEM_FREQ_BANDS = {
 # Stems that benefit from double-pass isolation
 DEEP_ISOLATE_STEMS = {"drums", "guitar"}
 STEM_TO_4S = {"drums": "drums", "guitar": "other"}
+
+# Chord templates: pitch classes (0=C, 1=C#, ... 11=B)
+CHORD_TEMPLATES = {
+    "C":  [0,4,7], "Cm": [0,3,7], "C7": [0,4,7,10], "Cmaj7": [0,4,7,11], "Cm7": [0,3,7,10],
+    "Cdim": [0,3,6], "Caug": [0,4,8], "Csus4": [0,5,7], "Csus2": [0,2,7],
+}
+NOTE_NAMES = ['C', 'C#', 'D', 'Eb', 'E', 'F', 'F#', 'G', 'Ab', 'A', 'Bb', 'B']
+
+def _build_all_chords():
+    """Generate chord templates for all 12 roots."""
+    chords = {}
+    for name, intervals in CHORD_TEMPLATES.items():
+        suffix = name[1:] if len(name) > 1 and not name[1].isdigit() else name[1:]
+        # suffix is everything after 'C'
+        suffix = name.replace('C', '', 1)
+        for root in range(12):
+            pcs = sorted(set((i + root) % 12 for i in intervals))
+            chord_name = NOTE_NAMES[root] + suffix
+            chords[chord_name] = set(pcs)
+    return chords
+
+ALL_CHORDS = _build_all_chords()
+
+def _note_to_pc(note_name):
+    """Convert note name like 'C#3' or 'Eb4' to pitch class 0-11."""
+    n = note_name.replace('\u266f', '#').replace('\u266d', 'b')
+    # Strip octave number
+    base = n.rstrip('0123456789')
+    mapping = {'C': 0, 'C#': 1, 'Db': 1, 'D': 2, 'D#': 3, 'Eb': 3, 'E': 4, 'F': 5,
+               'F#': 6, 'Gb': 6, 'G': 7, 'G#': 8, 'Ab': 8, 'A': 9, 'A#': 10, 'Bb': 10,
+               'B': 11, 'B#': 0, 'Cb': 11}
+    # Handle sharp symbol
+    base = base.replace('\u266f', '#').replace('\u266d', 'b')
+    return mapping.get(base, 0)
+
+def detect_chords_per_bar(notes, tempo_bpm, time_sig=4):
+    """Detect chords per bar from transcription notes."""
+    if not notes or tempo_bpm <= 0:
+        return []
+    bar_duration = (60.0 / tempo_bpm) * time_sig
+    max_time = max(n["s"] + n["d"] for n in notes)
+    num_bars = int(max_time / bar_duration) + 1
+    bars = []
+    for bar_idx in range(num_bars):
+        bar_start = bar_idx * bar_duration
+        bar_end = bar_start + bar_duration
+        # Collect pitch classes weighted by duration in this bar
+        pc_weight = [0.0] * 12
+        for n in notes:
+            ns, nd = n["s"], n["d"]
+            ne = ns + nd
+            overlap = max(0, min(ne, bar_end) - max(ns, bar_start))
+            if overlap > 0:
+                pc = _note_to_pc(n["p"])
+                pc_weight[pc] += overlap
+        active = set(i for i, w in enumerate(pc_weight) if w > 0)
+        if not active:
+            bars.append({"bar": bar_idx + 1, "chord": "-", "time": round(bar_start, 2)})
+            continue
+        # Match against chord templates
+        best_chord, best_score = "?", 0
+        for name, pcs in ALL_CHORDS.items():
+            if not pcs:
+                continue
+            match = len(active & pcs)
+            total = len(pcs)
+            score = match / total - 0.1 * len(active - pcs)
+            if score > best_score:
+                best_score = score
+                best_chord = name
+        bars.append({"bar": bar_idx + 1, "chord": best_chord, "time": round(bar_start, 2)})
+    return bars
 
 
 def _bandpass(y, sr, low, high):
@@ -162,7 +235,7 @@ def extract_rich_data(audio_path, use_gpu=True):
         _, midi_data, _ = bp_predict(audio_path, model_or_model_path=BASIC_PITCH_MODEL)
         if hasattr(midi_data, 'instruments') and len(midi_data.instruments) > 0:
             raw_notes = midi_data.instruments[0].notes
-            for n in raw_notes[:100]:
+            for n in raw_notes:
                 notes.append({
                     "p": librosa.midi_to_note(n.pitch),
                     "s": round(float(n.start), 2),
@@ -171,14 +244,19 @@ def extract_rich_data(audio_path, use_gpu=True):
     except Exception as e:
         print(f"⚠️ Transcription failed: {e}")
 
+    # Detect chords per bar from transcription
+    tempo_val = round(float(np.atleast_1d(tempo)[0]), 1)
+    chords_per_bar = detect_chords_per_bar(notes, tempo_val) if notes else []
+
     return {
         "metadata": {
-            "tempo_bpm": round(float(np.atleast_1d(tempo)[0]), 1),
+            "tempo_bpm": tempo_val,
             "estimated_key": estimated_key,
             "instruments": stems_found,
             "processing_device": device
         },
         "transcription_preview": notes,
+        "chords_per_bar": chords_per_bar,
         "midi_data": midi_data
     }
 
@@ -263,6 +341,12 @@ def run_ollama_only(input_path):
         f.write("---\n\n")
         f.write(analysis)
     print(f"\n💾 Report saved to: {report_path}")
+
+    # Regenerate HTML with analysis
+    stem_dir = os.path.join("separated", "htdemucs_6s", filename)
+    html_path = generate_html_report(input_path, output_dir, stem_dir, filename)
+    if html_path:
+        print(f"🌐 HTML report: {html_path}")
 
 
 def main():
@@ -367,6 +451,11 @@ def main():
             f.write("---\n\n")
             f.write(analysis)
         print(f"\n💾 Report saved to: {report_path}")
+
+    # Generate HTML report
+    html_path = generate_html_report(args.input, output_dir, stem_dir, filename)
+    if html_path:
+        print(f"🌐 HTML report: {html_path}")
 
     # Cleanup stems if requested
     if args.cleanup and os.path.exists(stem_dir):

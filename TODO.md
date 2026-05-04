@@ -21,8 +21,8 @@
 
 ## 🟡 Medium
 
-- [ ] **Output a formatted dynamic HTML page**
-  Supplement the Markdown report with an HTML template (Jinja2 or f-strings). No server needed, just write an `.html` file alongside the existing report.
+- [x] **Output a formatted dynamic HTML page**
+  Interactive HTML report with Dark Neo/Minimal/Editorial themes, audio players, chord chart, layout switcher, and print support.
 
 - [ ] **Generate guitar tab output**
   Convert MIDI note data to tab format. Requires mapping MIDI pitches → string/fret positions and a text formatter. Non-trivial string assignment logic.

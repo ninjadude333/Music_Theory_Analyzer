@@ -11,3 +11,6 @@ input/
 # IDE
 .vscode/
 .idea/
+
+# Environment
+.env

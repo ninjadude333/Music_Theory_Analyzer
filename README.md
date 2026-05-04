@@ -6,9 +6,11 @@ Drop in any audio file and get back:
 - 🥁 **Stem separation** (bass, drums, guitar, piano, vocals, other) via [Demucs](https://github.com/facebookresearch/demucs) (`htdemucs_6s`)
 - 🎹 **MIDI transcription** via [Basic Pitch](https://github.com/spotify/basic-pitch)
 - 🎵 **Audio feature extraction** (tempo, key detection) via [Librosa](https://librosa.org/)
+- 🎶 **Chord detection** per bar from MIDI transcription
 - 🧠 **Expert music theory analysis** (key/mode, Roman numeral analysis, song form, soloing advice) via [Ollama](https://ollama.com/) LLM
+- 🌐 **Interactive HTML report** with audio players, chord chart, theme switcher
 
-Reports are saved as Markdown files alongside the separated stems for easy reference.
+Reports are saved as Markdown and HTML files alongside the separated stems for easy reference.
 
 ---
 
@@ -23,8 +25,8 @@ Reports are saved as Markdown files alongside the separated stems for easy refer
                            ▼                      ▼                        ▼
                     separated/htdemucs_6s/   output/<song>/           output/<song>/
                     <song>/bass.wav          <song>.mid               <song>_analysis.md
-                    <song>/drums.wav
-                    <song>/guitar.wav
+                    <song>/drums.wav         <song>_data.json         <song>_report.html
+                    <song>/guitar.wav        <song>_multitrack.mid
                     <song>/piano.wav
                     <song>/vocals.wav
                     <song>/other.wav
@@ -169,9 +171,26 @@ separated/htdemucs_6s/my_song/
 output/my_song/
 ├── my_song_data.json           ← Audio metadata + transcription (always created)
 ├── my_song_analysis.md         ← LLM music theory report (with --ollama)
+├── my_song_report.html         ← Interactive HTML report (always created)
 ├── my_song.mid                 ← MIDI transcription (with --export-midi)
 └── my_song_multitrack.mid      ← Multitrack MIDI (with --export-multitrack-midi)
 ```
+
+### HTML Report
+
+The HTML report (`_report.html`) is a self-contained interactive page featuring:
+
+- **Theme switcher** — Dark Neo, Minimal, Editorial
+- **Layout modes:**
+  - **Analysis** — LLM report prominent, audio player sidebar
+  - **Player** — Audio player prominent, analysis sidebar
+  - **Chords** — Full-width chord chart only (great for playing along)
+  - **Compact** — Single column, everything stacked
+- **Stats bar** — Tempo, Key, Instruments, Notes detected
+- **Audio players** — Original mix, all stems (original/enhanced/deep-isolate), MIDI download
+- **Chord progression** — Per-bar chord detection from MIDI, displayed as a grid
+- **Transcription preview** — First 30 notes with pitch, timing, and duration bars
+- **Print support** — Clean print layout with audio players hidden
 
 ---
 
@@ -268,7 +287,6 @@ Contributions are welcome and appreciated! Here's how to get involved:
 
 ### Ideas for Contributions
 
-- [ ] Support for additional output formats (PDF, HTML)
 - [ ] Chord progression timeline visualization
 - [ ] Batch processing of multiple files
 - [ ] Web UI / API server mode
