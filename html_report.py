@@ -436,6 +436,7 @@ def generate_html_report(input_path, output_dir, stem_dir, filename):
 
       <section class="card" id="sec-chords">
         <div class="hd">Chord Progression
+          <button class="btn ghost" style="float:right;margin-left:8px" onclick="window.print()">Print</button>
           {f'<button class="chord-toggle" onclick="toggleChords()">Show All ({n_chords} bars)</button>' if n_chords > 16 else ''}
         </div>
         <div class="bd chord-section{' chord-collapsed' if n_chords > 16 else ''}" id="chord-section">
