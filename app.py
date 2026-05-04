@@ -34,6 +34,22 @@ OUTPUT_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "output")
 SYSTEM_PROMPT = """
 You are an expert Music Theory Professor and Studio Producer. 
 Identify the Key/Mode, provide Roman Numeral analysis, describe song form, and give soloing advice.
+
+IMPORTANT: You MUST include a structured song form section using EXACTLY this format:
+
+## Song Structure
+[SECTION:Intro:1-4]
+[SECTION:Verse:5-12]
+[SECTION:Chorus:13-20]
+[SECTION:Bridge:21-28]
+[SECTION:Chorus:29-36]
+[SECTION:Outro:37-40]
+
+Use the tempo and transcription data to estimate bar numbers. Each [SECTION] tag must have:
+- A standard name (Intro, Verse, Pre-Chorus, Chorus, Bridge, Solo, Outro, Interlude, Breakdown)
+- Start and end bar numbers based on the tempo and note timing
+
+Place this section BEFORE your detailed analysis. The rest of your analysis should follow your normal expert format.
 """
 
 # Initialize the remote client with a 5-minute timeout
@@ -325,7 +341,12 @@ def run_ollama_only(input_path):
         data = json.load(f)
 
     print(f"📄 Loaded existing data from: {json_path}")
-    analysis = get_ollama_analysis(data)
+    ollama_data = {
+        "metadata": data["metadata"],
+        "chords_per_bar": data.get("chords_per_bar", []),
+        "transcription_preview": data.get("transcription_preview", [])[:30],
+    }
+    analysis = get_ollama_analysis(ollama_data)
 
     print("\n" + "="*60)
     print("🎼 MUSIC THEORY ANALYSIS REPORT")
@@ -434,9 +455,14 @@ def main():
         json.dump(serializable_data, f, indent=4)
     print(f"📄 JSON saved to: {json_path}")
 
-    # Ollama analysis if requested
+    # Ollama analysis if requested — send compact data (metadata + chords, not all notes)
     if args.ollama:
-        analysis = get_ollama_analysis(serializable_data)
+        ollama_data = {
+            "metadata": serializable_data["metadata"],
+            "chords_per_bar": serializable_data.get("chords_per_bar", []),
+            "transcription_preview": serializable_data.get("transcription_preview", [])[:30],
+        }
+        analysis = get_ollama_analysis(ollama_data)
         print("\n" + "="*60)
         print("🎼 MUSIC THEORY ANALYSIS REPORT")
         print("="*60 + "\n")
