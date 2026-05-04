@@ -12,9 +12,6 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-# --- TENSORFLOW / KERAS LEGACY BRIDGE ---
-os.environ["TF_USE_LEGACY_KERAS"] = "1"
-
 try:
     import pretty_midi
     import soundfile as sf
@@ -23,6 +20,8 @@ try:
     from ollama import Client
     from httpx import Timeout
     from basic_pitch.inference import predict as bp_predict
+    from basic_pitch import ICASSP_2022_MODEL_PATH
+    BASIC_PITCH_MODEL = str(ICASSP_2022_MODEL_PATH) + ".onnx"
 except ImportError as e:
     print(f"❌ Missing dependencies: {e}")
     sys.exit(1)
@@ -160,7 +159,7 @@ def extract_rich_data(audio_path, use_gpu=True):
     notes = []
     midi_data = None
     try:
-        _, midi_data, _ = bp_predict(audio_path)
+        _, midi_data, _ = bp_predict(audio_path, model_or_model_path=BASIC_PITCH_MODEL)
         if hasattr(midi_data, 'instruments') and len(midi_data.instruments) > 0:
             raw_notes = midi_data.instruments[0].notes
             for n in raw_notes[:100]:
@@ -332,7 +331,7 @@ def main():
                 continue
             try:
                 print(f"  ♪ Transcribing {stem_name}...")
-                _, stem_midi, _ = bp_predict(stem_path)
+                _, stem_midi, _ = bp_predict(stem_path, model_or_model_path=BASIC_PITCH_MODEL)
                 if hasattr(stem_midi, 'instruments') and stem_midi.instruments:
                     track = stem_midi.instruments[0]
                     track.name = stem_name
