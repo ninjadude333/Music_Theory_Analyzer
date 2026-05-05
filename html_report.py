@@ -222,9 +222,19 @@ def generate_html_report(input_path, output_dir, stem_dir, filename):
         artist = ", ".join(song_info.get("artists", [])) or "Unknown Artist"
         title = song_info.get("title", "Unknown")
         album = song_info.get("album", "")
+        year = song_info.get("year", "")
+        genres = song_info.get("genres", [])
         score = song_info.get("score", 0)
-        album_str = f' • {album}' if album else ''
-        song_header = f'<div class="song-id"><span class="song-title">{artist} — {title}</span><span class="song-meta">{album_str} • Match: {int(score*100)}%</span></div>'
+        meta_parts = []
+        if album:
+            meta_parts.append(f"Album: {album}")
+        if year:
+            meta_parts.append(year)
+        if genres:
+            meta_parts.append(" • ".join(genres))
+        meta_parts.append(f"Match: {int(score*100)}%")
+        meta_str = " • ".join(meta_parts)
+        song_header = f'<div class="song-id"><span class="song-title">{artist} — {title}</span><span class="song-meta">{meta_str}</span></div>'
 
     analysis_html = "<p>No LLM analysis available. Run with <code>--ollama</code> to generate.</p>"
     raw_md = None

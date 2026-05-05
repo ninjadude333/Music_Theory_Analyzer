@@ -149,7 +149,7 @@ def _bandpass(y, sr, low, high):
 
 
 def detect_song(audio_path):
-    """Identify song using AcoustID/Chromaprint fingerprinting."""
+    """Identify song using AcoustID/Chromaprint fingerprinting + MusicBrainz metadata."""
     if not ACOUSTID_API_KEY:
         return None
 
@@ -164,11 +164,18 @@ def detect_song(audio_path):
         for score, recording_id, title, artist in results:
             if score < 0.5:
                 continue
-            return {
+            song_info = {
                 "title": title or "Unknown",
                 "artists": [artist] if artist else [],
                 "score": round(score, 2),
+                "recording_id": recording_id,
             }
+            # Enrich with MusicBrainz metadata
+            if recording_id:
+                mb_data = _musicbrainz_lookup(recording_id)
+                if mb_data:
+                    song_info.update(mb_data)
+            return song_info
         return None
     except acoustid.NoBackendError:
         print("  ⚠️ Chromaprint/fpcalc not found. Install: pip install pyacoustid")
@@ -176,6 +183,44 @@ def detect_song(audio_path):
         return None
     except Exception as e:
         print(f"  ⚠️ AcoustID lookup failed: {e}")
+        return None
+
+
+def _musicbrainz_lookup(recording_id):
+    """Fetch additional metadata from MusicBrainz for a recording."""
+    import urllib.request
+    try:
+        url = f"https://musicbrainz.org/ws/2/recording/{recording_id}?inc=releases+artist-credits+tags+genres&fmt=json"
+        req = urllib.request.Request(url, headers={"User-Agent": "MusicTheoryAnalyzer/1.0 (github.com/ninjadude333/Music_Theory_Analyzer)"})
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            data = json.loads(resp.read().decode())
+
+        result = {}
+
+        # Album and year from first release
+        if data.get("releases"):
+            rel = data["releases"][0]
+            result["album"] = rel.get("title", "")
+            result["year"] = rel.get("date", "")[:4] if rel.get("date") else ""
+            result["track_number"] = ""
+            if rel.get("media"):
+                for media in rel["media"]:
+                    for track in media.get("tracks", []):
+                        if track.get("recording", {}).get("id") == recording_id:
+                            result["track_number"] = str(track.get("position", ""))
+                            break
+
+        # Genres/tags
+        genres = []
+        for tag in data.get("tags", []):
+            genres.append(tag["name"])
+        for genre in data.get("genres", []):
+            genres.append(genre["name"])
+        if genres:
+            result["genres"] = list(set(genres))[:5]
+
+        return result if result else None
+    except Exception:
         return None
 
 
@@ -389,6 +434,8 @@ def run_ollama_only(input_path):
         "chords_per_bar": data.get("chords_per_bar", []),
         "transcription_preview": data.get("transcription_preview", [])[:30],
     }
+    if data.get("song_info"):
+        ollama_data["song_info"] = data["song_info"]
     analysis = get_ollama_analysis(ollama_data)
 
     print("\n" + "="*60)
@@ -505,6 +552,8 @@ def main():
             "chords_per_bar": serializable_data.get("chords_per_bar", []),
             "transcription_preview": serializable_data.get("transcription_preview", [])[:30],
         }
+        if serializable_data.get("song_info"):
+            ollama_data["song_info"] = serializable_data["song_info"]
         analysis = get_ollama_analysis(ollama_data)
         print("\n" + "="*60)
         print("🎼 MUSIC THEORY ANALYSIS REPORT")
