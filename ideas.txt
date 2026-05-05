@@ -1,1 +1,2 @@
 # Last ingested to TODO.md on 2026-05-03 15:38:55
+1. add a song detection step using a public free api (like shazam, or free equivilant).

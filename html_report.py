@@ -214,6 +214,17 @@ def generate_html_report(input_path, output_dir, stem_dir, filename):
 
     meta = data["metadata"]
     notes = data.get("transcription_preview", [])
+    song_info = data.get("song_info", None)
+
+    # Build song info display
+    song_header = ""
+    if song_info:
+        artist = ", ".join(song_info.get("artists", [])) or "Unknown Artist"
+        title = song_info.get("title", "Unknown")
+        album = song_info.get("album", "")
+        score = song_info.get("score", 0)
+        album_str = f' • {album}' if album else ''
+        song_header = f'<div class="song-id"><span class="song-title">{artist} — {title}</span><span class="song-meta">{album_str} • Match: {int(score*100)}%</span></div>'
 
     analysis_html = "<p>No LLM analysis available. Run with <code>--ollama</code> to generate.</p>"
     raw_md = None
@@ -306,6 +317,9 @@ def generate_html_report(input_path, output_dir, stem_dir, filename):
     .topbar{{display:grid;grid-template-columns:1fr auto auto;gap:14px;align-items:center;margin-bottom:18px}}
     .title{{font-weight:800;letter-spacing:-.02em;line-height:1.05;font-size:clamp(26px,3vw,36px)}}
     .title small{{display:block;font-weight:500;color:var(--subtle);font-size:.6em}}
+    .song-id{{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:12px 18px;margin-bottom:14px;box-shadow:var(--shadow)}}
+    .song-title{{font-size:20px;font-weight:800;color:var(--accent);letter-spacing:-.01em}}
+    .song-meta{{display:block;font-size:13px;color:var(--subtle);margin-top:4px}}
     .control{{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:8px;display:flex;gap:6px;box-shadow:var(--shadow)}}
     .btn{{border:1px solid transparent;background:transparent;color:var(--text);padding:8px 12px;border-radius:10px;cursor:pointer;font-weight:600;font-size:13px;text-decoration:none}}
     .btn[aria-pressed="true"],.btn.primary{{background:var(--muted);border-color:var(--border)}}
@@ -426,6 +440,8 @@ def generate_html_report(input_path, output_dir, stem_dir, filename):
       <div class="stat"><div class="l">Instruments</div><div class="k">{len(meta.get("instruments", []))}</div><div class="muted">Separated by Demucs</div></div>
       <div class="stat"><div class="l">Notes Detected</div><div class="k">{len(notes)}</div><div class="muted">Transcribed by Basic Pitch</div></div>
     </div>
+
+    {song_header}
 
     <div class="sections">
 

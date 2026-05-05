@@ -30,6 +30,7 @@ except ImportError as e:
 # --- CONFIGURATION ---
 OLLAMA_HOST = os.getenv("OLLAMA_HOST", "http://localhost:11434")
 MODEL_NAME = os.getenv("MODEL_NAME", "gemma4:e4b")
+ACOUSTID_API_KEY = os.getenv("ACOUSTID_API_KEY", "")
 OUTPUT_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "output")
 SYSTEM_PROMPT = """
 You are an expert Music Theory Professor and Studio Producer. 
@@ -145,6 +146,37 @@ def detect_chords_per_bar(notes, tempo_bpm, time_sig=4):
 def _bandpass(y, sr, low, high):
     sos = butter(5, [low, high], btype='band', fs=sr, output='sos')
     return sosfilt(sos, y)
+
+
+def detect_song(audio_path):
+    """Identify song using AcoustID/Chromaprint fingerprinting."""
+    if not ACOUSTID_API_KEY:
+        return None
+
+    try:
+        import acoustid
+    except ImportError:
+        print("  ⚠️ pyacoustid not installed. Run: pip install pyacoustid")
+        return None
+
+    try:
+        results = acoustid.match(ACOUSTID_API_KEY, audio_path)
+        for score, recording_id, title, artist in results:
+            if score < 0.5:
+                continue
+            return {
+                "title": title or "Unknown",
+                "artists": [artist] if artist else [],
+                "score": round(score, 2),
+            }
+        return None
+    except acoustid.NoBackendError:
+        print("  ⚠️ Chromaprint/fpcalc not found. Install: pip install pyacoustid")
+        print("    On Windows you may also need fpcalc.exe from https://acoustid.org/chromaprint")
+        return None
+    except Exception as e:
+        print(f"  ⚠️ AcoustID lookup failed: {e}")
+        return None
 
 
 def enhance_stems(stem_dir, use_bandpass=False):
@@ -264,6 +296,16 @@ def extract_rich_data(audio_path, use_gpu=True):
     tempo_val = round(float(np.atleast_1d(tempo)[0]), 1)
     chords_per_bar = detect_chords_per_bar(notes, tempo_val) if notes else []
 
+    # Song identification via AcoustID
+    song_info = None
+    if ACOUSTID_API_KEY:
+        print("[3] 🔍 Identifying song via AcoustID...")
+        song_info = detect_song(audio_path)
+        if song_info:
+            print(f"  ✅ Detected: {', '.join(song_info.get('artists', []))} - {song_info['title']} (score: {song_info['score']})")
+        else:
+            print("  ⚠️ Song not identified.")
+
     return {
         "metadata": {
             "tempo_bpm": tempo_val,
@@ -271,6 +313,7 @@ def extract_rich_data(audio_path, use_gpu=True):
             "instruments": stems_found,
             "processing_device": device
         },
+        "song_info": song_info,
         "transcription_preview": notes,
         "chords_per_bar": chords_per_bar,
         "midi_data": midi_data

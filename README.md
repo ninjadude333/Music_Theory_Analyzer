@@ -42,6 +42,10 @@ Reports are saved as Markdown and HTML files alongside the separated stems for e
 - [Ollama](https://ollama.com/) running on a reachable host (local or remote)
 - A pulled model (default: `gemma4:e4b`) — any model works, just update `MODEL_NAME` in `app.py`
 - (Optional) NVIDIA GPU + CUDA for faster stem separation
+- (Optional) Chromaprint for song identification:
+  - **Windows:** `fpcalc.exe` in project root or PATH ([download](https://acoustid.org/chromaprint))
+  - **Linux:** `sudo apt install libchromaprint-tools`
+  - **macOS:** `brew install chromaprint`
 
 ### Installation
 

@@ -22,3 +22,4 @@ httpx>=0.24.0
 # Utility
 tqdm
 python-dotenv
+pyacoustid>=1.2.2
