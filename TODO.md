@@ -11,6 +11,9 @@
 
 ## 🟢 Easy
 
+- [ ] **Support more input audio types: mp4, m4a, wav, flac**
+  Demucs and librosa already handle wav/flac natively. For mp4/m4a, ensure ffmpeg is available (Demucs uses it internally). May just need to remove any file-extension filtering in `app.py`.
+
 - [x] **Export MIDI file of chord progression and melody**
   Basic Pitch already produces `midi_data` — just save it with `midi_data.write()`. Minimal code change in `extract_rich_data()`.
 
@@ -28,6 +31,9 @@
   Convert MIDI note data to tab format. Requires mapping MIDI pitches → string/fret positions and a text formatter. Non-trivial string assignment logic.
 
 ## 🟠 Medium–Hard
+
+- [ ] **Dockerize the app to receive audio input and return HTML output**
+  Create a Dockerfile with all dependencies (Python, ffmpeg, torch, Demucs, Basic Pitch). Expose an endpoint or volume mount that accepts audio and returns the generated HTML report. Needs careful handling of GPU passthrough and large image size.
 
 - [ ] **Generate piano sheet music output**
   Needs a notation library (`music21` or `lilypond`). Converting MIDI → readable sheet music with proper rhythm quantization is significantly harder than tabs.
